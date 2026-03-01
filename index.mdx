@@ -1,97 +1,82 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "Hanalyx Documentation"
+description: "Everything you need to install, configure, deploy, and operate Kensa and OpenWatch"
 ---
 
-## Setting up
+## Products
 
-Get your documentation site up and running in minutes.
-
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
+<CardGroup cols={2}>
   <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
+    title="Kensa"
     icon="terminal"
-    href="/api-reference/introduction"
+    href="/kensa/index"
   >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
-
-## Create beautiful pages
-
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
+    CLI compliance engine with 508 rules, 23 remediation mechanisms, and automatic rollback. Scan, remediate, and roll back security configurations over SSH.
   </Card>
   <Card
-    title="Code samples"
+    title="OpenWatch"
+    icon="radar"
+    href="/openwatch/index"
+  >
+    Continuous compliance platform with dashboards, drift detection, adaptive scheduling, and audit-ready evidence. See everything, continuously.
+  </Card>
+</CardGroup>
+
+## Get started
+
+<CardGroup cols={3}>
+  <Card
+    title="Install Kensa"
+    icon="download"
+    href="/kensa/quickstart"
+  >
+    Get from zero to your first compliance scan in 10 minutes.
+  </Card>
+  <Card
+    title="Deploy OpenWatch"
+    icon="server"
+    href="/openwatch/installation"
+  >
+    Deploy with Docker, Podman, RPM, or from source.
+  </Card>
+  <Card
+    title="API reference"
     icon="code"
-    href="/essentials/code"
+    href="/openwatch/api-guide"
   >
-    Add sample code to demonstrate how to use your product.
+    80+ REST endpoints for automation and integration.
+  </Card>
+</CardGroup>
+
+## Supported frameworks
+
+Both Kensa and OpenWatch support the following compliance frameworks from a single scan.
+
+| Framework | Mapping ID | Description |
+|-----------|-----------|-------------|
+| CIS RHEL 9 v2.0.0 | `cis-rhel9-v2.0.0` | Center for Internet Security Benchmark |
+| STIG RHEL 9 V2R7 | `stig-rhel9-v2r7` | DISA Security Technical Implementation Guide |
+| NIST 800-53 R5 | `nist-800-53-r5` | NIST Security Controls |
+| PCI-DSS v4.0 | `pci-dss-v4.0` | Payment Card Industry Data Security Standard |
+| FedRAMP Moderate | `fedramp-moderate` | Federal Risk and Authorization Management Program |
+
+## Community
+
+All documentation is hosted on GitHub. Contributions are welcome.
+
+<CardGroup cols={2}>
+  <Card
+    title="Kensa on GitHub"
+    icon="github"
+    href="https://github.com/Hanalyx/kensa"
+  >
+    Source code, issues, and discussions.
   </Card>
   <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
+    title="OpenWatch on GitHub"
+    icon="github"
+    href="https://github.com/Hanalyx/OpenWatch"
   >
-    Display images and other media.
+    Source code, issues, and discussions.
   </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+</CardGroup>
