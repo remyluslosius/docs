@@ -1,0 +1,201 @@
+---
+title: "Scanning & compliance"
+description: "Scan lifecycle, frameworks, posture scores, drift, and alerts"
+---
+
+## How scanning works
+
+When a scan runs, OpenWatch uses the Kensa compliance engine to connect to the target host over SSH, execute each rule's check command, and return a pass/fail result with machine-verifiable evidence.
+
+```
+Operator clicks "Run Scan" (or adaptive scheduler triggers)
+        |
+        v
+Celery task queued (compliance_scanning queue)
+        |
+        v
+Kensa retrieves SSH credentials from encrypted store
+        |
+        v
+SSH connection to target host
+        |
+        v
+338 YAML rules evaluated
+        |
+        v
+Results stored in PostgreSQL (scan_findings table)
+        |
+        v
+Posture snapshot updated, alerts generated if thresholds met
+```
+
+Key points:
+
+- **No agent on targets.** Kensa connects over SSH, runs commands, and disconnects.
+- **One scan, many frameworks.** A single scan produces results that map to CIS, STIG, NIST, PCI-DSS, and FedRAMP simultaneously.
+- **Evidence captured.** Each check records the command executed, the raw output, the expected value, and the actual value found.
+
+## Running a scan
+
+### From the UI
+
+1. Navigate to **Hosts** and select the host.
+2. Click **Run Scan**.
+3. Select a compliance framework (or leave blank to run all 338 rules).
+4. Click **Start Scan**.
+
+The scan runs in the background. Results appear on the host's compliance tab once complete (typically 1-5 minutes).
+
+### Automatic scanning
+
+Most hosts are scanned automatically by the adaptive scheduler. See [Adaptive scheduling](#adaptive-scheduling) below.
+
+## Reading scan results
+
+After a scan completes, the results show on the host detail page under the **Compliance** tab.
+
+| Element | Description |
+|---------|-------------|
+| Compliance score | Percentage of rules passing (e.g., 85.0%) |
+| Summary bar | Pass, fail, error, and skipped counts |
+| Severity breakdown | Counts by critical, high, medium, low |
+| Findings table | Sortable, filterable list of all findings |
+
+### Finding details
+
+Click any finding to expand it:
+
+| Field | Description |
+|-------|-------------|
+| Rule ID | Kensa rule identifier (e.g., `sshd-disable-root-login`) |
+| Title | Human-readable description |
+| Severity | critical, high, medium, or low |
+| Status | pass, fail, error, or skipped |
+| Detail | Explanation of the check result |
+| Evidence | Command executed, expected value, actual value |
+
+## Compliance posture
+
+The compliance score is the percentage of evaluated rules that passed:
+
+```
+compliance_score = (passed_rules / total_rules) * 100
+```
+
+Skipped rules are excluded from the total.
+
+The **Dashboard** shows aggregate scores across all hosts, per-host scores, trend charts, and framework breakdowns.
+
+### Historical posture
+
+OpenWatch captures daily posture snapshots at 00:30 UTC. View historical posture from the host detail page under the **Posture History** tab.
+
+## Drift detection
+
+Drift occurs when a rule's status changes between two points in time. A rule that was passing and now fails is a **regression**. A rule that was failing and now passes is an **improvement**.
+
+### Viewing drift
+
+1. Navigate to the host detail page.
+2. Select the **Drift** tab.
+3. Choose a date range.
+
+The drift view shows:
+
+- **Score delta** — how much the compliance score changed
+- **Drift type** — stable, minor, major, or improvement
+- **Rules improved** and **rules regressed** — counts with expandable lists
+- **Timeline** — when each drift event occurred
+
+### Field-level value drift
+
+Enable **Include value drift** to see rules where the underlying configuration value changed even though the pass/fail status did not.
+
+### Responding to drift
+
+1. Review the regressed rules and their evidence.
+2. Investigate the root cause on the host (configuration change, package update).
+3. Remediate the finding, or create a compliance exception if the risk is accepted.
+
+## Adaptive scheduling
+
+The compliance scheduler automatically scans hosts at intervals based on their compliance state.
+
+| Compliance State | Score Range | Scan Interval |
+|------------------|-------------|---------------|
+| Compliant | 100% | Every 24 hours |
+| Mostly compliant | 80-99% | Every 12 hours |
+| Partial | 50-79% | Every 6 hours |
+| Low | 20-49% | Every 2 hours |
+| Critical | < 20% or critical findings | Every 1 hour |
+| Unknown | Never scanned | Immediate |
+| Maintenance | Paused | Every 48 hours (max) |
+
+### Maintenance mode
+
+To pause scanning during planned maintenance:
+
+1. Go to the host detail page.
+2. Click **Maintenance Mode**.
+3. Set the duration (1-168 hours).
+4. Click **Enable**.
+
+Maintenance mode expires automatically.
+
+### Force scan
+
+Click **Force Scan** on the host detail page to trigger an immediate scan outside the normal schedule.
+
+## Alert management
+
+Alerts are generated automatically when scan results meet configured thresholds.
+
+### Alert categories
+
+| Category | Alert Types |
+|----------|-------------|
+| Compliance | Critical finding, high finding, score drop, non-compliant, degrading trend |
+| Operational | Host unreachable, scan failed, scheduler stopped, scan backlog |
+| Exception | Exception expiring, exception expired, exception requested |
+| Drift | Configuration drift, unexpected remediation, mass drift |
+
+### Alert lifecycle
+
+```
+Active --> Acknowledged --> Resolved
+```
+
+- **Active**: Alert generated, requires attention.
+- **Acknowledged**: You are investigating.
+- **Resolved**: Issue is fixed or accepted.
+
+### Configuring thresholds
+
+Navigate to **Settings > Alert Thresholds**:
+
+| Setting | Default | Meaning |
+|---------|---------|---------|
+| Score drop threshold | 20 points | Alert if score drops 20+ points in 24h |
+| Non-compliant threshold | 80% | Alert if score falls below 80% |
+| Degrading trend scans | 3 | Alert after 3 consecutive declining scans |
+| Max scan age | 48 hours | Alert if host not scanned in 48 hours |
+| Exception expiry warning | 7 days | Warn 7 days before exception expires |
+| Mass drift threshold | 10 hosts | Alert if 10+ hosts drift simultaneously |
+
+## Exporting for audits
+
+### Creating a saved query
+
+1. Navigate to **Compliance > Audit Queries**.
+2. Click **New Query**.
+3. Define filter criteria (severities, statuses, date range, hosts).
+4. Name the query and set visibility (private or shared).
+5. Click **Save**.
+
+### Generating an export
+
+1. From a saved query, click **Export**.
+2. Choose a format: **CSV**, **JSON**, or **PDF**.
+3. The export generates in the background. A download link appears when ready.
+
+Exports include a SHA-256 checksum for integrity verification. Exports expire after 7 days by default.

@@ -1,0 +1,177 @@
+---
+title: "Hosts & remediation"
+description: "Host management, groups, server intelligence, and automated remediation"
+---
+
+## Adding a host
+
+### From the UI
+
+1. Navigate to **Hosts** in the left sidebar.
+2. Click **Add Host**.
+3. Fill in the details:
+
+| Field | Required | Example |
+|-------|----------|---------|
+| Hostname | Yes | `web-01` |
+| IP Address | Yes | `192.168.1.10` |
+| SSH Port | Yes | `22` |
+| Display Name | No | `Web Server 01` |
+| Operating System | No | `RHEL 9` |
+| Environment | No | `production` |
+
+4. Click **Save**.
+
+### Bulk import
+
+1. Navigate to **Hosts** and click **Bulk Import**.
+2. Download the CSV template.
+3. Fill in the template with your host data.
+4. Upload the CSV file.
+5. Review the auto-detected field mappings.
+6. Confirm the import.
+
+Set **Dry Run** to validate the file without creating hosts. Set **Update Existing** to overwrite hosts that match by hostname or IP address.
+
+## SSH credentials
+
+OpenWatch connects to hosts over SSH. No agent is installed on target hosts.
+
+| Method | When to use |
+|--------|-------------|
+| **SSH Key** (recommended) | Paste or upload the private key. Stored encrypted. |
+| **Password** | Enter the SSH password. Stored encrypted with AES-256-GCM. |
+| **System Default** | Uses the credential configured in Settings > System Credentials. |
+
+After saving credentials, click **Test Connection** to verify SSH connectivity.
+
+### Credential security
+
+All credentials are encrypted with AES-256-GCM before being stored in the database. Decryption happens only at scan time, in memory. Plaintext credentials are never written to disk or logs.
+
+## Host groups
+
+Host groups let you organize hosts into logical collections for group-level compliance reporting and batch scanning.
+
+### Creating a group
+
+1. Navigate to **Host Groups** in the sidebar.
+2. Click **Create Group**.
+3. Enter a name, description, OS family, and compliance framework.
+4. Click **Save**.
+
+### Assigning hosts
+
+1. Open the group detail page.
+2. Click **Add Hosts**.
+3. Select hosts from the list.
+4. Click **Confirm**.
+
+Each host can belong to one group at a time.
+
+### Smart group creation
+
+Select multiple hosts and click **Smart Group**. OpenWatch analyzes their OS, architecture, and compliance profile to recommend group settings automatically.
+
+### Group scanning
+
+From the group detail page, click **Scan Group** to start a compliance scan for all hosts in the group simultaneously.
+
+## Host discovery
+
+### OS detection
+
+OpenWatch automatically detects the operating system during scans. A scheduled task runs daily at 02:00 UTC to discover the OS for all active hosts not yet identified.
+
+### Connectivity monitoring
+
+Host connectivity is checked every 30 seconds. Each check verifies ICMP reachability, SSH port availability, and SSH authentication. Host status (online, offline, degraded) updates in the host list.
+
+## Server intelligence
+
+During compliance scans, OpenWatch collects detailed information about each host. Available on the host detail page under the **Intelligence** tab.
+
+| Category | What it contains |
+|----------|------------------|
+| Packages | Installed packages, versions, sources |
+| Services | Running services, listening ports, enabled state |
+| Users | User accounts, groups, shell, last login |
+| Network | Interfaces, IP addresses, firewall rules |
+
+The host detail page also shows OS name/version, CPU model/cores, memory, SELinux/AppArmor status, and firewall status.
+
+## Remediation
+
+OpenWatch can automatically fix compliance findings through Kensa's 23 remediation mechanisms. All changes are made over SSH.
+
+### What remediation can fix
+
+| Category | Examples |
+|----------|----------|
+| Boot configuration | GRUB settings, boot parameters |
+| Authentication | PAM modules, password policies |
+| Filesystem | fstab mount options, file permissions |
+| Kernel | sysctl parameters, module blacklisting |
+| Services | systemd service management, cron restrictions |
+| Audit | auditd rules, log configuration |
+| Network | SSH daemon settings, firewall rules |
+
+### Starting a remediation
+
+1. Navigate to the host detail page and view scan results.
+2. Select the failing findings you want to remediate (use checkboxes).
+3. Click **Remediate Selected**.
+4. Review the proposed changes.
+5. Click **Start Remediation** to confirm.
+
+For organizations that require approval workflows:
+
+1. Select findings and click **Request Remediation**.
+2. Enter a justification.
+3. An admin reviews and approves the request.
+4. Once approved, the remediation executes automatically.
+
+### Monitoring progress
+
+Track remediation progress on the host detail page under the **Remediation** tab:
+
+- **Job status**: pending, running, completed, failed, partial, cancelled
+- **Progress percentage**: how many rules have been processed
+- **Per-rule results**: which fixes succeeded, failed, or were skipped
+- **Execution log**: timestamps and details for each step
+
+## Rollback
+
+Pre-state snapshots are captured automatically before any remediation changes.
+
+1. Go to the **Remediation** tab on the host detail page.
+2. Find the remediation job.
+3. Click **Rollback**.
+4. Enter a reason (logged for audit purposes).
+5. Click **Confirm Rollback**.
+
+Rollback requires SUPER_ADMIN or SECURITY_ADMIN role (`scan:rollback` permission).
+
+After a rollback completes, run a follow-up compliance scan to verify the host returned to its previous state.
+
+## Required permissions
+
+| Operation | Minimum Role |
+|-----------|-------------|
+| View hosts | GUEST |
+| Add / edit / delete hosts | SECURITY_ANALYST |
+| Bulk import / export | SECURITY_ADMIN |
+| Start remediation | SECURITY_ADMIN |
+| Approve remediation | SUPER_ADMIN |
+| Rollback remediation | SECURITY_ADMIN |
+| View server intelligence | SECURITY_ANALYST |
+| Manage host groups | SECURITY_ANALYST |
+
+## Best practices
+
+1. **Test credentials before scanning.** Use the Test Connection button to confirm SSH access.
+2. **Use SSH keys, not passwords.** Key-based authentication is more secure and reliable.
+3. **Start remediation on a single host.** Test changes on one host before applying to a group.
+4. **Review findings before remediating.** Understand what each rule checks and what the fix changes.
+5. **Monitor compliance score after remediation.** Force a scan for immediate results.
+6. **Use groups for consistent scanning.** Hosts in the same group share OS family, framework, and scan schedule.

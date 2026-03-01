@@ -1,4 +1,170 @@
 ---
 title: "Quickstart"
-description: "Deploy OpenWatch in 10 minutes"
+description: "Get from installation to your first compliance scan in 15 minutes"
 ---
+
+## Prerequisites
+
+- **OpenWatch running** with all containers healthy. See the [Installation guide](/openwatch/installation) if you have not deployed yet.
+- **A Linux host reachable via SSH** from the OpenWatch server (RHEL 8/9, Rocky, or Alma).
+- **SSH credentials** for that host (username + password, or SSH key).
+
+Default ports: Frontend on **3000**, Backend API on **8000**.
+
+## Step 1: Verify the deployment
+
+Confirm the backend is healthy:
+
+```bash
+curl -s http://localhost:8000/health | jq .
+```
+
+Expected output:
+
+```json
+{
+  "status": "healthy",
+  "version": "1.2.0",
+  "database": "healthy",
+  "redis": "healthy"
+}
+```
+
+<Warning>Do not proceed until the health endpoint returns `"status": "healthy"`.</Warning>
+
+## Step 2: Log in
+
+Open **http://localhost:3000** in your browser. Enter the default credentials:
+
+| Field | Value |
+|-------|-------|
+| Username | `admin` |
+| Password | `admin` |
+
+<Warning>Change the default password immediately. Go to your user profile (top-right menu) and update the password. Default credentials must never be used in production.</Warning>
+
+## Step 3: Add a host
+
+From the left sidebar, navigate to **Hosts**. Click **Add Host**.
+
+Fill in the host details:
+
+| Field | Example Value |
+|-------|---------------|
+| Hostname | `web-01` |
+| IP Address | `192.168.1.10` |
+| SSH Port | `22` |
+| Display Name | `Web Server 01` (optional) |
+| Operating System | `RHEL 9` (optional) |
+
+Click **Save**.
+
+## Step 4: Configure SSH credentials
+
+On the host detail page, navigate to the **Credentials** section.
+
+| Method | When to use |
+|--------|-------------|
+| **SSH Key** (recommended) | Paste the private key. Stored encrypted with AES-256-GCM. |
+| **Password** | Enter the SSH password. Stored encrypted. |
+| **System Default** | Uses the credential configured in Settings > System Credentials. |
+
+After saving credentials, use the **Test Connection** button to verify SSH connectivity before scanning.
+
+## Step 5: Run a compliance scan
+
+From the host detail page, click **Run Scan**. Select a compliance framework:
+
+| Framework | Rules | Best for |
+|-----------|-------|----------|
+| CIS RHEL 9 v2.0.0 | 271 | Industry-standard hardening benchmarks |
+| STIG RHEL 9 V2R7 | 338 | DoD and government environments |
+| NIST 800-53 R5 | 87 | Federal information systems |
+| PCI-DSS v4.0 | 45 | Payment card environments |
+| FedRAMP Moderate | 87 | Cloud services for government |
+
+Click **Start Scan**. The scan runs in the background and typically takes 1-5 minutes.
+
+## Step 6: View scan results
+
+Once the scan completes, the host detail page shows:
+
+- **Compliance score** — percentage of rules passing (e.g., 72.2%)
+- **Pass / Fail / Error counts** — summary by status
+- **Findings table** — each rule with its status, severity, title, and detail
+- **Severity breakdown** — critical, high, medium, low counts
+
+Click any finding to expand its detail, including the evidence (command executed, expected value, actual value).
+
+## Step 7: Review the compliance dashboard
+
+Navigate to the **Dashboard** from the left sidebar. The dashboard shows:
+
+- **Aggregate compliance posture** across all hosts
+- **Host list** with last scan status and compliance scores
+- **Trend data** showing compliance score over time
+- **Active alerts** for compliance drift and threshold violations
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Hosts & remediation" icon="wrench" href="/openwatch/hosts-and-remediation">
+    Add more hosts, organize into groups, and fix findings.
+  </Card>
+  <Card title="Scanning & compliance" icon="radar" href="/openwatch/scanning">
+    Understand posture scores, drift, and alerts.
+  </Card>
+  <Card title="User roles" icon="users" href="/openwatch/user-roles">
+    Set up team access with role-based permissions.
+  </Card>
+  <Card title="API guide" icon="code" href="/openwatch/api-guide">
+    Automate scanning via the REST API.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cannot reach http://localhost:3000">
+    Frontend container may not be running. Check `docker ps | grep openwatch-frontend` and `docker logs openwatch-frontend`.
+  </Accordion>
+  <Accordion title="Connection refused on health check">
+    Backend is not running. Check `docker ps` and `docker logs openwatch-backend`.
+  </Accordion>
+  <Accordion title="Login fails with default credentials">
+    Verify the backend started successfully. Check `docker logs openwatch-backend` for initialization errors.
+  </Accordion>
+  <Accordion title="Scan stuck in queued">
+    The Celery worker may be down. Verify with `docker ps | grep openwatch-worker` and confirm Redis is up: `docker exec openwatch-redis redis-cli ping` (expect `PONG`).
+  </Accordion>
+  <Accordion title="Scan fails immediately">
+    Check the error on the scan results page. Common causes: SSH connection failure (wrong credentials or network), unsupported OS on target, or Kensa rules not loaded (`KENSA_RULES_PATH` not set).
+  </Accordion>
+</AccordionGroup>
+
+## API alternative
+
+For operators who prefer CLI or want to script these steps:
+
+```bash
+# Authenticate
+TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin"}' | jq -r '.access_token')
+
+# Add a host
+HOST_ID=$(curl -s -X POST http://localhost:8000/api/hosts/ \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"hostname":"web-01","ip_address":"192.168.1.10","ssh_port":22}' | jq -r '.id')
+
+# Run a scan
+SCAN_ID=$(curl -s -X POST http://localhost:8000/api/scans/kensa/ \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"host_id\":\"$HOST_ID\",\"framework\":\"cis-rhel9-v2.0.0\"}" | jq -r '.scan_id')
+
+# View results
+curl -s http://localhost:8000/api/scans/$SCAN_ID/results \
+  -H "Authorization: Bearer $TOKEN" | jq '{compliance_percentage, total_rules, pass_count, fail_count}'
+```

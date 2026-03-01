@@ -1,0 +1,316 @@
+---
+title: "Installation"
+description: "Deployment options and configuration"
+---
+
+## Prerequisites
+
+**Hardware**
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| RAM | 4 GB | 8 GB |
+| CPU | 2 cores | 4 cores |
+| Disk | 20 GB | 50 GB |
+
+**Software**
+
+- Linux host: RHEL 8/9, Rocky Linux, AlmaLinux, Ubuntu 22.04+, or any Docker-capable system
+- Docker 24+ or Podman 4+ (for container deployment)
+- Network access to target hosts on port 22 (SSH)
+- `curl` and `openssl` available on the host
+
+**Network ports**
+
+| Port | Service | Direction |
+|------|---------|-----------|
+| 3000 | Frontend (dev/Docker) | Inbound |
+| 8000 | Backend API | Inbound |
+| 22 | SSH to scan targets | Outbound |
+| 443/80 | Frontend (production) | Inbound |
+
+## Deployment options
+
+<Tabs>
+  <Tab title="Docker (recommended)">
+    Docker Compose is the fastest path to a running OpenWatch instance. The compose file defines six services: PostgreSQL 15, Redis 7, the FastAPI backend, a Celery worker, a Celery beat scheduler, and an Nginx-based React frontend.
+
+    ### 1. Clone the repository
+
+    ```bash
+    git clone https://github.com/Hanalyx/openwatch.git
+    cd openwatch
+    ```
+
+    ### 2. Configure environment
+
+    Copy the example environment file and set secure values:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Open `.env` and set the required variables:
+
+    ```bash
+    POSTGRES_PASSWORD=<strong-database-password>
+    REDIS_PASSWORD=<strong-redis-password>
+    OPENWATCH_SECRET_KEY=<random-64-char-hex>
+    MASTER_KEY=<random-64-char-hex>
+    OPENWATCH_ENCRYPTION_KEY=<random-64-char-hex>
+    ```
+
+    Generate random keys with:
+
+    ```bash
+    openssl rand -hex 32
+    ```
+
+    ### 3. Start services
+
+    ```bash
+    ./start-openwatch.sh --runtime docker --build
+    ```
+
+    Subsequent starts (without code changes) can skip the build:
+
+    ```bash
+    ./start-openwatch.sh --runtime docker
+    ```
+
+    ### 4. Verify
+
+    ```bash
+    curl -s http://localhost:8000/health | python3 -m json.tool
+    ```
+
+    ### 5. Log in
+
+    | Field | Value |
+    |-------|-------|
+    | Username | `admin` |
+    | Password | `admin` |
+
+    <Warning>Change the default password immediately after first login.</Warning>
+
+    ### 6. Stop services
+
+    ```bash
+    # Stop containers, preserve data volumes
+    ./stop-openwatch.sh
+
+    # Stop containers and delete all data
+    ./stop-openwatch.sh --deep-clean
+    ```
+  </Tab>
+  <Tab title="Podman">
+    OpenWatch supports Podman as an alternative container runtime.
+
+    ### 1. Install Podman
+
+    ```bash
+    # RHEL/Rocky/Alma
+    sudo dnf install -y podman podman-compose
+
+    # Ubuntu/Debian
+    sudo apt install -y podman podman-compose
+    ```
+
+    ### 2. Clone and configure
+
+    Follow the same clone and `.env` setup steps from the Docker tab.
+
+    ### 3. Start services
+
+    ```bash
+    ./start-openwatch.sh --runtime podman --build
+    ```
+
+    ### Podman-specific notes
+
+    **Rootless mode**: If containers cannot bind to privileged ports (80, 443), either run with `sudo` or configure `net.ipv4.ip_unprivileged_port_start=80` in `/etc/sysctl.conf`.
+
+    **SELinux volume mounts**: On SELinux-enforcing hosts, append `:Z` to volume mounts:
+
+    ```yaml
+    volumes:
+      - ./security/certs:/openwatch/security/certs:ro,Z
+    ```
+
+    **Podman socket**: Enable if required by compose tooling:
+
+    ```bash
+    systemctl --user enable --now podman.socket
+    ```
+  </Tab>
+  <Tab title="RPM (bare metal)">
+    RPM packages are available for RHEL 9 and compatible distributions.
+
+    ### 1. Install external dependencies
+
+    ```bash
+    # PostgreSQL 15
+    sudo dnf module enable postgresql:15
+    sudo dnf install -y postgresql-server postgresql-contrib
+    sudo postgresql-setup --initdb
+    sudo systemctl enable --now postgresql
+
+    # Redis 7
+    sudo dnf install -y redis
+    sudo systemctl enable --now redis
+    ```
+
+    ### 2. Install Python 3.12
+
+    ```bash
+    sudo dnf install -y python3.12 python3.12-pip python3.12-devel
+    ```
+
+    ### 3. Install OpenWatch
+
+    ```bash
+    sudo rpm -ivh openwatch-<version>.rpm
+    ```
+
+    ### 4. Install Kensa
+
+    ```bash
+    sudo python3.12 -m pip install kensa
+    export KENSA_RULES_PATH=/opt/openwatch/kensa-rules
+    ```
+
+    ### 5. Configure database
+
+    ```bash
+    sudo -u postgres createuser openwatch
+    sudo -u postgres createdb -O openwatch openwatch
+    ```
+
+    ### 6. Run migrations
+
+    ```bash
+    cd /opt/openwatch/backend
+    python3.12 -m alembic upgrade head
+    ```
+
+    ### 7. Start services
+
+    ```bash
+    sudo systemctl enable --now openwatch-api
+    sudo systemctl enable --now openwatch-worker
+    sudo systemctl enable --now openwatch-beat
+    ```
+  </Tab>
+  <Tab title="From source">
+    This method is intended for developers contributing to OpenWatch.
+
+    ### Prerequisites
+
+    Python 3.12+, Node.js 20+, PostgreSQL 15, Redis 7.
+
+    ### Backend
+
+    ```bash
+    git clone https://github.com/Hanalyx/openwatch.git
+    cd openwatch/backend
+    python3.12 -m venv venv
+    source venv/bin/activate
+    pip install -r requirements.txt
+    alembic upgrade head
+    uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ```
+
+    ### Celery worker (separate terminal)
+
+    ```bash
+    cd backend
+    celery -A app.celery_app worker --loglevel=info \
+      -Q default,scans,results,maintenance,monitoring,host_monitoring,health_monitoring,compliance_scanning
+    ```
+
+    ### Frontend
+
+    ```bash
+    cd frontend
+    npm ci
+    npm run dev
+    ```
+
+    ### Kensa
+
+    ```bash
+    pip install kensa
+    export KENSA_RULES_PATH=/path/to/kensa-rules
+    ```
+  </Tab>
+</Tabs>
+
+## Production deployment
+
+For production, use the Docker Compose overlay that enables HTTPS, FIPS mode, resource limits, and JSON logging:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+| Setting | Development | Production |
+|---------|-------------|------------|
+| `OPENWATCH_DEBUG` | `true` | `false` |
+| `OPENWATCH_FIPS_MODE` | `false` | `true` |
+| `OPENWATCH_REQUIRE_HTTPS` | `false` | `true` |
+| `OPENWATCH_SSH_STRICT_MODE` | `false` | `true` |
+| Frontend ports | 3000:80 | 443:443, 80:80 |
+| Resource limits | None | Per-service CPU/memory limits |
+| Log driver | Default | JSON file with rotation |
+| Restart policy | `unless-stopped` | `always` |
+
+Before deploying to production:
+
+1. Place TLS certificates in `security/certs/` and keys in `security/keys/`.
+2. Set all environment variables to strong, unique values.
+3. Configure firewall rules to restrict access to ports 8000 and 3000/443.
+
+## Post-install checklist
+
+- [ ] Backend health check passes: `curl http://localhost:8000/health`
+- [ ] Frontend loads in browser
+- [ ] Default admin password changed
+- [ ] SSH credentials configured for target hosts
+- [ ] TLS certificates in place (production only)
+- [ ] Log rotation configured for `/openwatch/logs/`
+- [ ] Firewall rules restrict access to exposed ports
+
+## Environment variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `POSTGRES_PASSWORD` | PostgreSQL password | Random 32+ character string |
+| `REDIS_PASSWORD` | Redis authentication password | Random 32+ character string |
+| `OPENWATCH_SECRET_KEY` | Application secret for session signing | `openssl rand -hex 32` |
+| `MASTER_KEY` | Master encryption key | `openssl rand -hex 32` |
+| `OPENWATCH_ENCRYPTION_KEY` | Data-at-rest encryption key | `openssl rand -hex 32` |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Backend container fails to start">
+    Check logs for database connection issues:
+
+    ```bash
+    docker logs openwatch-backend --tail 50
+    docker exec openwatch-db pg_isready -U openwatch -d openwatch
+    ```
+  </Accordion>
+  <Accordion title="Frontend returns 502 Bad Gateway">
+    The backend may still be initializing. Wait 30 seconds and retry. Check that the backend container is running: `docker ps | grep openwatch-backend`.
+  </Accordion>
+  <Accordion title="Celery worker not processing tasks">
+    ```bash
+    docker logs openwatch-worker --tail 50
+    docker exec openwatch-redis redis-cli -a "${REDIS_PASSWORD}" ping
+    ```
+  </Accordion>
+  <Accordion title="Permission denied on volume mounts (Podman/SELinux)">
+    Add the `:Z` suffix to volume mounts in the compose file.
+  </Accordion>
+</AccordionGroup>

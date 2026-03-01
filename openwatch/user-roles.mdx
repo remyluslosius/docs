@@ -1,0 +1,115 @@
+---
+title: "User roles"
+description: "Role-based access control and permissions"
+---
+
+OpenWatch defines six roles. The admin and analyst roles form a privilege hierarchy. The compliance officer and auditor roles exist on a parallel track optimized for reporting and audit workflows.
+
+```
+SUPER_ADMIN -------- Full platform access
+  |
+  SECURITY_ADMIN --- Security operations (no user management)
+    |
+    SECURITY_ANALYST - Day-to-day scanning
+
+COMPLIANCE_OFFICER -- Reporting and audit (parallel track)
+AUDITOR ------------ Read-only audit access (parallel track)
+GUEST -------------- Minimal read-only
+```
+
+## Role descriptions
+
+### Super Admin
+
+**Who uses it:** Platform owners and IT managers responsible for the entire OpenWatch deployment.
+
+Full access to all 33 permissions. Can create/manage users, assign roles, configure system settings, and perform all host, scan, content, and reporting operations.
+
+### Security Admin
+
+**Who uses it:** Senior security engineers who manage hosts, scans, and content but do not manage users or system configuration.
+
+Full host management, content management, and scan operations. Can read user accounts but cannot create, update, delete, or change roles. Cannot modify system configuration or credentials.
+
+### Security Analyst
+
+**Who uses it:** Day-to-day operators who run scans, review results, and generate reports.
+
+Can read and update hosts, read content, create and execute scans, read results, and generate/export reports. Cannot create or delete hosts, manage content, approve or rollback scans, or access system administration.
+
+### Compliance Officer
+
+**Who uses it:** Personnel responsible for regulatory reporting, exception management, and audit preparation.
+
+Read-only access to hosts, content, scans, and results (including cross-platform results). Can generate and export reports, read audit logs, and view/export compliance data. Cannot modify any resources or execute scans.
+
+### Auditor
+
+**Who uses it:** Internal or external auditors who need read-only access to compliance evidence and audit trails.
+
+Similar to Compliance Officer but cannot generate reports (can only export existing ones). Can query historical posture, export audit logs, and review exception history.
+
+### Guest
+
+**Who uses it:** Stakeholders who need minimal visibility into compliance status.
+
+Can read assigned hosts, read assigned results, and view compliance posture. No write, execute, export, or administrative access.
+
+## Permissions matrix
+
+| Permission | Super Admin | Security Admin | Analyst | Compliance Officer | Auditor | Guest |
+|---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **User Management** | | | | | | |
+| user:create | Y | - | - | - | - | - |
+| user:read | Y | Y | - | - | - | - |
+| user:update | Y | - | - | - | - | - |
+| user:delete | Y | - | - | - | - | - |
+| user:manage_roles | Y | - | - | - | - | - |
+| **Host Management** | | | | | | |
+| host:create | Y | Y | - | - | - | - |
+| host:read | Y | Y | Y | Y | Y | Y |
+| host:update | Y | Y | Y | - | - | - |
+| host:delete | Y | Y | - | - | - | - |
+| host:manage_access | Y | Y | - | - | - | - |
+| **Content Management** | | | | | | |
+| content:create | Y | Y | - | - | - | - |
+| content:read | Y | Y | Y | Y | Y | - |
+| content:update | Y | Y | - | - | - | - |
+| content:delete | Y | Y | - | - | - | - |
+| **Scan Operations** | | | | | | |
+| scan:create | Y | Y | Y | - | - | - |
+| scan:read | Y | Y | Y | Y | Y | - |
+| scan:execute | Y | Y | Y | - | - | - |
+| scan:approve | Y | Y | - | - | - | - |
+| scan:rollback | Y | Y | - | - | - | - |
+| **Results & Reports** | | | | | | |
+| results:read | Y | Y | Y | Y | Y | Y |
+| results:read_all | Y | Y | - | Y | Y | - |
+| reports:generate | Y | Y | Y | Y | - | - |
+| reports:export | Y | Y | Y | Y | Y | - |
+| **System** | | | | | | |
+| system:config | Y | - | - | - | - | - |
+| system:credentials | Y | - | - | - | - | - |
+| system:logs | Y | Y | - | - | - | - |
+| system:maintenance | Y | - | - | - | - | - |
+| **Audit & Compliance** | | | | | | |
+| audit:read | Y | Y | - | Y | Y | - |
+| compliance:view | Y | Y | Y | Y | Y | Y |
+| compliance:export | Y | Y | - | Y | Y | - |
+
+**Permission counts:** Super Admin: 33, Security Admin: 26, Security Analyst: 11, Compliance Officer: 11, Auditor: 9, Guest: 3.
+
+## Managing roles
+
+Role assignment requires the `user:manage_roles` permission (Super Admin only).
+
+```bash
+curl -X PUT http://localhost:8000/api/users/{user_id} \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "security_analyst"}'
+```
+
+Valid role values: `super_admin`, `security_admin`, `security_analyst`, `compliance_officer`, `auditor`, `guest`.
+
+Only one role can be assigned per user. Role changes take effect on the user's next authentication.

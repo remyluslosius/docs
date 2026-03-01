@@ -2,3 +2,121 @@
 title: "Introduction"
 description: "The Compliance Operating System — See Everything, Continuously"
 ---
+
+OpenWatch is a continuous compliance platform for Linux infrastructure. It connects to servers over SSH, runs compliance checks via the Kensa engine, and provides visibility into compliance posture over time. OpenWatch answers not just what is passing now, but what was passing last week, what drifted since the last scan, and what needs immediate attention. All findings include machine-generated evidence, framework mappings, and timestamps suitable for audit review.
+
+## The problem
+
+Compliance in most environments is manual, fragmented, and reactive.
+
+- **Point-in-time scans decay immediately.** A passing result from last Tuesday says nothing about today. Without continuous scanning, compliance status is unknown between assessments.
+- **Historical questions are unanswerable.** When an auditor asks "were you compliant on January 15th?", the answer requires re-scanning infrastructure that may have changed.
+- **Exceptions live in spreadsheets.** Waiver approvals, risk acceptances, and compensating controls are tracked outside the scanning tool.
+- **Drift is invisible until the next audit.** A configuration change at 2 AM on a Saturday will not surface until someone manually re-scans.
+- **Evidence is assembled after the fact.** Teams spend days before audits collecting screenshots and command outputs to prove compliance.
+
+OpenWatch eliminates this cycle.
+
+## The solution: See, Scan, Secure
+
+### See
+
+The dashboard provides real-time compliance posture across all managed hosts. Historical trend data shows how posture has changed over days, weeks, and months. Drift alerts notify operators when a previously-passing check begins failing. Point-in-time queries answer "what was the state on this date?" without re-scanning.
+
+### Scan
+
+The Kensa compliance engine runs 338 YAML-based rules over SSH connections. Each rule maps to one or more compliance frameworks simultaneously. A single scan produces results for CIS, STIG, NIST 800-53, PCI-DSS, and FedRAMP without running separate tools for each framework.
+
+### Secure
+
+When findings are identified, OpenWatch provides remediation workflows. Automated fixes include rollback capability. Exception governance tracks waivers through an approval workflow with expiration dates. All scan results, remediations, and exceptions produce audit-ready evidence packages.
+
+## Core values
+
+1. **Security-First** — Every feature is designed with security as the primary requirement. Authentication uses Argon2id password hashing. API tokens use RS256 JWT. All SSH credentials are encrypted at rest with AES-256-GCM.
+2. **Transparency** — Compliance status is visible at all times. Dashboard views, API endpoints, and audit exports all reflect the same underlying data.
+3. **Automation** — Manual effort is reduced through intelligent scanning schedules and automated remediation. Operators configure policies once. The platform enforces them continuously.
+4. **Rule-Based Compliance** — One rule set covers many frameworks. Capabilities are detected at runtime, not hardcoded per operating system.
+
+## Operating principle
+
+Kensa scans run on adaptive schedules based on host compliance state:
+
+| Host State | Scan Interval | Rationale |
+|------------|---------------|-----------|
+| Healthy | Every 24 hours | Baseline monitoring, low overhead |
+| Degraded | Every 6 hours | Track remediation progress |
+| Critical | Every 1 hour | Rapid feedback on urgent fixes |
+
+These intervals are configurable per policy. No manual scanning is required for day-to-day operations.
+
+## Architecture at a glance
+
+OpenWatch runs as six Docker containers.
+
+```
++---------------------------------------------------+
+|  openwatch-frontend  (React 19, Nginx)      :3000 |
++---------------------------------------------------+
+|  openwatch-backend   (FastAPI, Python 3.12) :8000 |
++------------------------+--------------------------+
+|  openwatch-worker      |  openwatch-celery-beat   |
+|  (Celery task workers) |  (Periodic scheduler)    |
++------------------------+--------------------------+
+|  openwatch-db          |  openwatch-redis         |
+|  (PostgreSQL 15)       |  (Redis 7.4)             |
++------------------------+--------------------------+
+```
+
+**Frontend** serves the React application through Nginx. All API requests are proxied to the backend.
+
+**Backend** exposes the REST API via FastAPI. It handles authentication, authorization, scan management, compliance queries, and framework mappings.
+
+**Worker** processes asynchronous tasks including scan execution, result parsing, alert evaluation, and remediation jobs.
+
+**Celery Beat** triggers scheduled scans based on adaptive compliance policies.
+
+**PostgreSQL** stores all persistent data: hosts, scans, findings, users, exceptions, alerts, framework mappings, and audit logs.
+
+**Redis** serves as the Celery message broker and provides caching for frequently accessed compliance data.
+
+**Kensa** is the compliance engine installed on the backend container. It connects to target hosts over SSH, executes rule checks, and returns structured results with evidence.
+
+## Who OpenWatch is for
+
+- **System Administrators** managing compliance across a Linux fleet
+- **Security Engineers** building and enforcing security baselines
+- **Security Analysts** investigating compliance drift and remediation effectiveness
+- **Compliance Officers** preparing for audits and generating evidence packages
+- **Auditors** reviewing compliance posture and exceptions
+
+OpenWatch provides role-based access control so each user sees the views and actions relevant to their responsibilities.
+
+## Supported frameworks
+
+| Framework | Mapping ID | Rules |
+|-----------|------------|-------|
+| CIS RHEL 9 v2.0.0 | `cis-rhel9-v2.0.0` | 271 |
+| STIG RHEL 9 V2R7 | `stig-rhel9-v2r7` | 338 |
+| NIST 800-53 R5 | `nist-800-53-r5` | 87 |
+| PCI-DSS v4.0 | `pci-dss-v4.0` | 45 |
+| FedRAMP Moderate | `fedramp-moderate` | 87 |
+
+A single scan evaluates all applicable rules. Framework filtering is applied at query time, not scan time. Adding support for a new framework requires only a mapping file.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/openwatch/quickstart">
+    First 15 minutes with OpenWatch.
+  </Card>
+  <Card title="Installation" icon="server" href="/openwatch/installation">
+    Deployment options and configuration.
+  </Card>
+  <Card title="Scanning" icon="radar" href="/openwatch/scanning">
+    Scan lifecycle, frameworks, and posture queries.
+  </Card>
+  <Card title="API guide" icon="code" href="/openwatch/api-guide">
+    Automation and integration reference.
+  </Card>
+</CardGroup>

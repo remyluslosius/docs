@@ -61,15 +61,22 @@
             "group": "Getting started",
             "pages": [
               "openwatch/index",
-              "openwatch/quickstart"
+              "openwatch/quickstart",
+              "openwatch/installation"
             ]
           },
           {
             "group": "Guides",
             "pages": [
-              "openwatch/architecture",
-              "openwatch/deployment",
-              "openwatch/security"
+              "openwatch/scanning",
+              "openwatch/hosts-and-remediation",
+              "openwatch/user-roles"
+            ]
+          },
+          {
+            "group": "Reference",
+            "pages": [
+              "openwatch/api-guide"
             ]
           }
         ]
