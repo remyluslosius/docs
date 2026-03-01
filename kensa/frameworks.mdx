@@ -1,0 +1,91 @@
+---
+title: "Frameworks"
+description: "Supported compliance frameworks and coverage"
+---
+
+## Available frameworks
+
+List all framework mappings installed with Kensa:
+
+```bash
+kensa list frameworks
+```
+
+| Framework | Mapping ID | Description |
+|-----------|-----------|-------------|
+| CIS RHEL 9 v2.0.0 | `cis-rhel9-v2.0.0` | Center for Internet Security Benchmark |
+| STIG RHEL 9 V2R7 | `stig-rhel9-v2r7` | DISA Security Technical Implementation Guide |
+| NIST 800-53 R5 | `nist-800-53-r5` | NIST Security Controls |
+| PCI-DSS v4.0 | `pci-dss-v4.0` | Payment Card Industry Data Security Standard |
+| FedRAMP Moderate | `fedramp-moderate` | Federal Risk and Authorization Management Program |
+| CIS RHEL 8 v4.0.0 | `cis-rhel8-v4.0.0` | CIS Benchmark for RHEL 8 |
+| STIG RHEL 8 V2R6 | `stig-rhel8-v2r6` | STIG for RHEL 8 |
+
+## How framework mappings work
+
+Frameworks are metadata, not structure. A single rule like `ssh-disable-root-login` maps to multiple frameworks simultaneously:
+
+```json
+{
+  "cis-rhel9-v2.0.0": "5.1.20",
+  "stig-rhel9-v2r7": "V-257947",
+  "nist-800-53-r5": "AC-6(2)",
+  "pci-dss-v4.0": "2.2.6"
+}
+```
+
+Adding a new framework means adding a column of labels, not a new set of rules. Run one scan, satisfy multiple assessors from the same results.
+
+## Filtering by framework
+
+Run only rules mapped to a specific benchmark:
+
+```bash
+kensa check -h 192.168.1.10 -u admin --sudo -f cis-rhel9-v2.0.0
+```
+
+Filter to a specific control within a framework:
+
+```bash
+kensa check -h 192.168.1.10 -u admin --sudo --control cis-rhel9-v2.0.0:5.1.12
+```
+
+## Coverage reports
+
+Show how completely a framework mapping is implemented:
+
+```bash
+kensa coverage --framework cis-rhel9-v2.0.0
+
+# JSON output for tooling
+kensa coverage --framework stig-rhel9-v2r7 --json
+```
+
+Reports the total number of controls in the framework, how many are mapped to rules, how many are explicitly marked unimplemented (with reasons), and how many are missing.
+
+## Framework-specific defaults
+
+When you filter by framework, Kensa automatically loads framework-specific variable values. This adjusts thresholds to match the framework's requirements without manual overrides.
+
+For example, CIS allows `pam_pwquality_minlen: 14` while STIG requires `15`. Running with `-f cis-rhel9-v2.0.0` uses the CIS value; running without a framework filter uses the STIG default.
+
+See [Configuration](/kensa/configuration) for details on variable precedence.
+
+## Looking up rules by framework reference
+
+```bash
+# Look up by CIS section number
+kensa info 5.1.20
+
+# Look up by STIG vulnerability ID
+kensa info V-257947
+
+# Look up by NIST 800-53 control
+kensa info AC-6
+
+# List all controls with rule counts
+kensa info --list-controls --framework cis-rhel9-v2.0.0
+
+# Prefix matching (5.1 matches 5.1.1, 5.1.2, etc.)
+kensa info 5.1 --prefix-match
+```

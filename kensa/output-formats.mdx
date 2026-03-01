@@ -1,0 +1,87 @@
+---
+title: "Output formats"
+description: "Terminal, JSON, CSV, PDF, and evidence output formats"
+---
+
+Kensa supports five output formats. Multiple formats can be generated in a single run.
+
+```bash
+kensa check -h 192.168.1.10 -u admin --sudo \
+  -o json:results.json -o csv:results.csv -o evidence:evidence.json -o pdf:report.pdf
+```
+
+## Terminal (default)
+
+Each rule prints a status line. The summary shows totals:
+
+```
+508 rules: 312 pass, 142 fail, 48 skip, 6 error (45.2s)
+```
+
+Use `-q` to suppress terminal output when writing to files with `-o`.
+
+## JSON
+
+```bash
+kensa check -h 192.168.1.10 -u admin --sudo -o json:results.json
+```
+
+Structured results with host details, platform, capabilities, per-rule results, and summary counts. Suitable for dashboards, SIEM integration, and automated processing.
+
+Each result includes the rule ID, title, severity, pass/fail/skip/error status, detail message, the implementation variant that was selected, and the framework section (when `--framework` is used).
+
+Key features:
+- **Multi-host aggregation.** Includes a top-level `hosts` array with per-host results and a global `summary`.
+- **Skip reason breakdown.** The `summary.skip_reasons` field categorizes why rules were skipped.
+
+<Note>JSON does not include raw command output. For audit-grade evidence, use the evidence export.</Note>
+
+## CSV
+
+```bash
+kensa check -h 192.168.1.10 -u admin --sudo -o csv:results.csv
+```
+
+One row per host-rule combination. Columns:
+
+```
+host,platform,rule_id,framework_section,title,severity,passed,skipped,error,error_detail,detail
+```
+
+Suitable for spreadsheet analysis, pivot tables, bulk import into GRC platforms, and cross-host consistency analysis.
+
+## PDF
+
+```bash
+kensa check -h 192.168.1.10 -u admin --sudo -o pdf:report.pdf
+```
+
+Visual compliance report with a summary table and color-coded per-host results (green for PASS, red for FAIL, orange for ERROR, grey for SKIP).
+
+Requires the `reportlab` package:
+
+```bash
+pip install kensa[pdf]
+```
+
+## Evidence
+
+```bash
+kensa check -h 192.168.1.10 -u admin --sudo -o evidence:evidence.json
+```
+
+Full machine-verifiable evidence for every check. This is the format designed for auditors.
+
+Each result includes:
+
+| Field | Description |
+|-------|-------------|
+| `method` | The check handler (e.g., `sshd_effective_config`, `file_permission`) |
+| `command` | The exact shell command executed on the target host |
+| `stdout` | Raw standard output from the command |
+| `stderr` | Raw standard error output |
+| `exit_code` | Command exit code |
+| `expected` | The value Kensa expected to find |
+| `actual` | The value Kensa actually found |
+
+See the [Auditor guide](/kensa/auditor-guide) for details on interpreting evidence output.

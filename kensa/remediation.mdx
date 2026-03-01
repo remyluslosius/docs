@@ -1,0 +1,126 @@
+---
+title: "Remediation & rollback"
+description: "Fix compliance failures with automatic rollback safety"
+---
+
+## How remediation works
+
+Remediation is a three-phase process for each failing rule:
+
+1. **Pre-state capture.** Kensa records the current value of every setting it will change.
+2. **Apply fix.** The remediation mechanism writes the corrected configuration.
+3. **Post-check.** Kensa re-runs the compliance check to verify the fix took effect.
+
+If step 3 fails and `--rollback-on-failure` is active, Kensa reverses all changes for that rule using the captured pre-state data.
+
+## Remediation mechanisms
+
+All remediations use typed, declarative mechanisms — not arbitrary shell scripts. Each mechanism is idempotent (running it twice produces the same result as running it once). Kensa selects the most durable option available: drop-in files in `.d/` directories survive package updates, while direct config edits may be overwritten.
+
+## Risk classification
+
+Every remediation step is assigned a risk level based on its mechanism type and target path:
+
+| Risk | Scope |
+|------|-------|
+| **High** | Mechanisms affecting boot, authentication, or mount behavior: GRUB parameters, kernel module disabling, PAM configuration, mount options. Also triggered by high-risk paths: `/etc/pam.d/`, `/etc/fstab`, `/etc/default/grub`, `/etc/selinux/config`. |
+| **Medium** | Mechanisms that change service or kernel behavior: config file edits, sysctl values, service masking, audit rules, SELinux booleans. |
+| **Low** | Narrow-scope changes: file permissions, package install/remove, cron jobs. |
+
+## Snapshot configuration
+
+The `rollback` section of `config/defaults.yml` controls pre-state capture:
+
+```yaml
+rollback:
+  snapshot: all             # all | risk_based | none
+  risk_threshold: medium    # Minimum risk level when snapshot=risk_based
+  high_risk_paths: []       # Additional paths that elevate risk to high
+  snapshot_active_days: 7   # Full rollback available within this window
+  snapshot_archive_days: 90 # Metadata retained, pre-state data pruned
+```
+
+- **`all`** (default): Capture pre-state for every remediation step.
+- **`risk_based`**: Capture only for steps at or above the risk threshold.
+- **`none`**: No snapshots. Faster, but rollback is unavailable.
+
+## Rollback workflow
+
+<Steps>
+  <Step title="Remediate with safety net">
+    ```bash
+    kensa remediate -h 192.168.1.10 -u admin --sudo --rollback-on-failure
+    ```
+  </Step>
+  <Step title="List sessions if you need to reverse later">
+    ```bash
+    kensa rollback --list
+    ```
+  </Step>
+  <Step title="Inspect what was changed">
+    ```bash
+    kensa rollback --info 3 --detail
+    ```
+  </Step>
+  <Step title="Preview and execute rollback">
+    ```bash
+    # Preview
+    kensa rollback --start 3 -h 192.168.1.10 -u admin --sudo --dry-run
+
+    # Execute
+    kensa rollback --start 3 -h 192.168.1.10 -u admin --sudo
+    ```
+  </Step>
+</Steps>
+
+## Non-capturable mechanisms
+
+Three mechanism types cannot capture pre-state:
+
+- **`command_exec`** — arbitrary commands
+- **`manual`** — human-performed steps
+- **`grub_parameter_set/remove`** — requires regenerating boot config
+
+Kensa surfaces these explicitly so operators know which steps lack rollback coverage.
+
+## History and drift detection
+
+### Storing results
+
+Add `--store` to any `check` command to persist results in the local SQLite database (`.kensa/results.db`):
+
+```bash
+kensa check -h 192.168.1.10 -u admin --sudo --store
+```
+
+### Tracking drift
+
+Compare two scan sessions to find regressions and improvements:
+
+```bash
+# Run a baseline scan
+kensa check -h 192.168.1.10 -u admin --sudo --store
+
+# ... time passes, changes are made ...
+
+# Run a follow-up scan
+kensa check -h 192.168.1.10 -u admin --sudo --store
+
+# Compare
+kensa history                               # Find session IDs
+kensa diff 1 2                              # See what changed
+```
+
+`diff` reports four categories: regressions (previously passing rules that now fail), resolved (previously failing rules that now pass), new failures, and new passes.
+
+### Database maintenance
+
+```bash
+# See database size and record counts
+kensa history --stats
+
+# Remove results older than 90 days
+kensa history --prune 90
+```
+
+Remediation snapshots follow their own retention policy (configurable in `defaults.yml`): full rollback data is available for 7 days (active window), metadata is retained for 90 days (archive window), then records are pruned.

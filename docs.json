@@ -1,48 +1,75 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Hanalyx Docs",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#004AAD",
+    "light": "#1A5FBD",
+    "dark": "#003D91"
+  },
+  "background": {
+    "color": {
+      "light": "#FAFAFA",
+      "dark": "#020202"
+    }
+  },
+  "fonts": {
+    "heading": {
+      "family": "Geist",
+      "weight": 700
+    },
+    "body": {
+      "family": "Geist",
+      "weight": 400
+    }
   },
   "favicon": "/favicon.svg",
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Kensa",
         "groups": [
           {
             "group": "Getting started",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "kensa/index",
+              "kensa/quickstart"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Reference",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "kensa/cli-reference",
+              "kensa/configuration",
+              "kensa/frameworks",
+              "kensa/output-formats"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Operations",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "kensa/remediation",
+              "kensa/auditor-guide"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "OpenWatch",
+        "groups": [
+          {
+            "group": "Getting started",
+            "pages": [
+              "openwatch/index",
+              "openwatch/quickstart"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Guides",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "openwatch/architecture",
+              "openwatch/deployment",
+              "openwatch/security"
             ]
           }
         ]
@@ -55,15 +82,6 @@
             "pages": [
               "api-reference/introduction"
             ]
-          },
-          {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
-            ]
           }
         ]
       }
@@ -71,14 +89,9 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "Community",
+          "href": "https://github.com/Hanalyx",
+          "icon": "github"
         }
       ]
     }
@@ -91,13 +104,13 @@
     "links": [
       {
         "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "href": "mailto:support@hanalyx.com"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "label": "GitHub",
+      "href": "https://github.com/Hanalyx"
     }
   },
   "contextual": {
@@ -114,9 +127,9 @@
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "x": "https://twitter.com/hanalyx",
+      "github": "https://github.com/Hanalyx",
+      "linkedin": "https://www.linkedin.com/company/hanalyx"
     }
   }
 }

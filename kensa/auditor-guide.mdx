@@ -1,0 +1,233 @@
+---
+title: "Auditor guide"
+description: "How to interpret, verify, and report on Kensa compliance evidence"
+---
+
+This guide is for compliance reviewers, assessors, and auditors who receive Kensa output and need to evaluate it independently.
+
+## What Kensa produces
+
+When a scan runs, each rule produces a result with one of four statuses:
+
+| Status | Meaning |
+|--------|---------|
+| **PASS** | The host meets the compliance requirement |
+| **FAIL** | The host does not meet the requirement |
+| **SKIP** | The rule does not apply to this host |
+| **ERROR** | The check could not complete |
+
+Kensa outputs results in four formats, each serving a different purpose:
+
+| Format | Purpose | Contains evidence? |
+|--------|---------|-------------------|
+| **Evidence** (JSON) | Auditor verification | Yes — raw commands, stdout, exit codes |
+| **JSON** | Tool integration | Partial — results and capabilities, no raw command output |
+| **CSV** | Spreadsheet analysis | No — summary data only |
+| **PDF** | Executive reporting | No — summary tables |
+
+The evidence export is the primary format for audit purposes.
+
+## Evidence export structure
+
+An evidence file contains four sections:
+
+### Session
+
+When the scan ran and what command was used:
+
+```json
+{
+  "id": "a1b2c3d4",
+  "timestamp": "2026-02-28T14:32:01Z",
+  "rules_path": "/opt/kensa/rules",
+  "command": "check"
+}
+```
+
+### Host
+
+What was scanned, including platform and detected capabilities:
+
+```json
+{
+  "hostname": "web1.example.com",
+  "platform": { "family": "rhel", "version": 9 },
+  "capabilities": {
+    "sshd_config_d": true,
+    "authselect": true,
+    "crypto_policies": true,
+    "fips_mode": false
+  }
+}
+```
+
+The capability set determines which implementation variant Kensa selected for each rule.
+
+### Results
+
+Per-rule findings with raw evidence:
+
+```json
+{
+  "rule_id": "ssh-disable-root-login",
+  "title": "Disable SSH root login",
+  "severity": "high",
+  "passed": true,
+  "skipped": false,
+  "detail": "PermitRootLogin=no",
+  "timestamp": "2026-02-28T14:32:05Z",
+  "evidence": {
+    "method": "sshd_effective_config",
+    "command": "sshd -T 2>/dev/null | grep -i permitrootlogin",
+    "stdout": "permitrootlogin no\n",
+    "stderr": "",
+    "exit_code": 0,
+    "expected": "no",
+    "actual": "no"
+  },
+  "frameworks": {
+    "cis-rhel9-v2.0.0": "5.1.20",
+    "stig-rhel9-v2r7": "V-257947",
+    "nist-800-53-r5": "AC-6(2)"
+  }
+}
+```
+
+### Summary
+
+```json
+{
+  "total": 508,
+  "pass": 312,
+  "fail": 142,
+  "skip": 48,
+  "fixed": 0
+}
+```
+
+## Verifying evidence
+
+For each finding an auditor wants to verify:
+
+<Steps>
+  <Step title="Check the command">
+    Is it a reasonable way to test this control? For example, `sshd -T` queries the SSH daemon's effective configuration, resolving all drop-in files and overrides — more reliable than reading a static config file.
+  </Step>
+  <Step title="Read stdout">
+    Does the raw output support the `actual` value? The `actual` field is extracted from `stdout` by the check handler. The raw output is preserved so you can confirm the extraction is correct.
+  </Step>
+  <Step title="Compare expected vs. actual">
+    A `passed: true` result means `actual` matches `expected`. A `passed: false` result means they differ. Verify this yourself.
+  </Step>
+  <Step title="Check the timestamp">
+    Evidence timestamps are ISO-8601 UTC. Confirm the scan was run within an acceptable window for your assessment.
+  </Step>
+  <Step title="Review stderr">
+    Non-empty stderr may indicate warnings. An exit code of 0 with stderr content usually means the command succeeded but produced warnings.
+  </Step>
+</Steps>
+
+## Common check methods
+
+| Method | Description |
+|--------|-------------|
+| **sshd_effective_config** | Runs `sshd -T` to query the SSH daemon's compiled configuration. Resolves all `Include` directives, drop-in files, and `Match` blocks. |
+| **config_value** | Reads a configuration file and searches for a specific key. |
+| **file_permission** | Runs `stat` to check file mode, ownership, or group. |
+| **file_content** | Reads a file and checks for the presence or absence of specific content. |
+| **command** | Runs a shell command and checks the exit code or stdout content. |
+| **service_state** | Checks whether a systemd service is enabled, disabled, or masked. |
+| **package_state** | Checks whether an RPM package is installed or absent. |
+| **audit_rule_exists** | Runs `auditctl -l` and verifies that a specific audit rule is loaded. |
+| **sysctl_value** | Runs `sysctl` to query a kernel parameter. |
+| **kernel_module_state** | Checks whether a kernel module is loaded, disabled, or blacklisted. |
+
+## Understanding skip results
+
+A SKIP result means the rule was not evaluated — it does not indicate a pass or a fail.
+
+| Skip reason | Meaning | Audit implication |
+|-------------|---------|-------------------|
+| Platform mismatch | Rule requires a different OS family or version | Not applicable to this host |
+| Missing capability | Rule requires a capability the host does not have | Implementation variant unavailable |
+| Dependency unmet | A prerequisite rule failed or was skipped | Control blocked by prerequisite |
+| Not in framework | Rule is not mapped to the selected framework filter | Filtered out by scan configuration |
+
+<Note>An auditor should not count skipped rules as failures. Document them as not applicable and verify that the skip reason is legitimate.</Note>
+
+## Remediation evidence
+
+When a scan is run with `kensa remediate`, results may include additional fields:
+
+```json
+{
+  "rule_id": "ssh-disable-root-login",
+  "passed": false,
+  "remediated": true,
+  "remediation_detail": "Written PermitRootLogin=no to /etc/ssh/sshd_config.d/00-kensa-permit-root-login.conf and reloaded sshd",
+  "rolled_back": false
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `remediated` | `true` if a fix was applied |
+| `remediation_detail` | What the fix did (file written, service reloaded, etc.) |
+| `rolled_back` | `true` if the fix was automatically reversed due to a failure |
+
+The `evidence` in a remediation result reflects the post-remediation state. The `passed` field indicates whether the initial check (before remediation) passed or failed.
+
+## Compliance assessment workflow
+
+### Phase 1: Plan
+
+```bash
+# What platform and capabilities does the host have?
+kensa detect -h 192.168.1.10 -u admin --sudo
+
+# What frameworks are available?
+kensa list frameworks
+
+# How complete is the framework coverage?
+kensa coverage --framework cis-rhel9-v2.0.0
+```
+
+### Phase 2: Collect evidence
+
+```bash
+kensa check -h 192.168.1.10 -u admin --sudo \
+  -f cis-rhel9-v2.0.0 \
+  -o evidence:evidence.json \
+  -o json:results.json \
+  -o csv:results.csv \
+  -o pdf:report.pdf
+```
+
+### Phase 3: Review
+
+1. **Open the evidence file.** Review `host.platform` and `host.capabilities` to confirm the target matches expectations.
+2. **Review failures.** Filter results where `passed: false` and `skipped: false`. Examine the `evidence` block for each.
+3. **Review skips.** Check that skipped rules have legitimate reasons.
+4. **Spot-check passes.** Select a sample and verify that `stdout` supports the `actual` value.
+5. **Cross-reference to framework.** Use the `frameworks` field to map findings back to benchmark control numbers.
+
+### Phase 4: Report
+
+Use CSV or JSON for summary statistics. Use the evidence export to back specific findings with verifiable data. The PDF report serves as a printable executive summary.
+
+## Verifying without re-scanning
+
+An auditor can verify a specific finding without access to Kensa by running the command shown in the evidence directly on the target host:
+
+```bash
+ssh admin@web1.example.com "sudo sshd -T 2>/dev/null | grep -i permitrootlogin"
+```
+
+If the output matches the `stdout` in the evidence file, the finding is confirmed.
+
+## Key concepts
+
+- **One rule, multiple frameworks.** A single scan produces evidence that satisfies CIS, STIG, NIST, PCI-DSS, and FedRAMP assessors simultaneously.
+- **Capability-gated implementations.** The same rule may use different commands on different hosts depending on detected capabilities. The evidence shows which variant was used.
+- **Evidence is raw system output.** Kensa does not interpret or summarize. The `stdout` field contains exactly what the target system returned.
+- **Timestamps are per-check.** Each result has its own `timestamp`, not just the session start time.

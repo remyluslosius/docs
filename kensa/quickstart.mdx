@@ -1,0 +1,182 @@
+---
+title: "Quickstart"
+description: "Get from zero to your first compliance scan in 10 minutes"
+---
+
+## Prerequisites
+
+- **Python 3.10+** on the machine running Kensa (the control host)
+- **SSH access** to target hosts (key-based or password)
+- **Sudo privileges** on target hosts for privileged checks (most compliance rules require root access)
+
+<Note>Kensa runs entirely from the control host over SSH. Nothing is installed on target systems.</Note>
+
+## Installation
+
+<Tabs>
+  <Tab title="pip">
+    ```bash
+    pip install git+https://github.com/Hanalyx/kensa.git
+    ```
+
+    For PDF report support:
+
+    ```bash
+    pip install "git+https://github.com/Hanalyx/kensa.git#egg=kensa[pdf]"
+    ```
+  </Tab>
+  <Tab title="RPM">
+    Download the RPM for your distribution from the [latest release](https://github.com/Hanalyx/kensa/releases/latest):
+
+    ```bash
+    dnf install ./kensa-1.2.2-1.el9.noarch.rpm
+    ```
+
+    RPM packages are available for EL8, EL9, EL10, and Fedora.
+  </Tab>
+  <Tab title="From source">
+    ```bash
+    git clone https://github.com/Hanalyx/kensa.git
+    cd kensa
+    pip install -e ".[dev]"
+    ```
+  </Tab>
+</Tabs>
+
+Verify installation:
+
+```bash
+kensa --version
+```
+
+## SSH setup
+
+Kensa needs SSH access to target hosts.
+
+<Tabs>
+  <Tab title="Key-based (recommended)">
+    ```bash
+    # Ensure your SSH key can reach the target
+    ssh admin@192.168.1.10 "echo connected"
+    ```
+  </Tab>
+  <Tab title="Password">
+    ```bash
+    # Use -p to prompt securely for a password
+    kensa check -h 192.168.1.10 -u admin -p --sudo
+    ```
+
+    The `-p` flag without a value prompts interactively with hidden input. You can also pass a password inline with `-p mypassword`, but interactive prompting is more secure.
+  </Tab>
+</Tabs>
+
+Most compliance checks require root privileges. Configure passwordless sudo for the SSH user:
+
+```bash
+# On the target host, grant passwordless sudo:
+echo "admin ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/kensa
+```
+
+## Your first scan
+
+<Steps>
+  <Step title="Detect host capabilities">
+    ```bash
+    kensa detect -h 192.168.1.10 -u admin --sudo
+    ```
+
+    This probes the target and reports its platform (e.g., RHEL 9.3) and detected capabilities (authselect, crypto policies, sshd_config.d support, etc.). Use this to verify connectivity before running checks.
+  </Step>
+  <Step title="Run compliance checks">
+    ```bash
+    kensa check -h 192.168.1.10 -u admin --sudo
+    ```
+
+    Each rule produces a result:
+
+    | Status | Meaning |
+    |--------|---------|
+    | **PASS** | Host meets the compliance requirement |
+    | **FAIL** | Host does not meet the requirement — remediation available |
+    | **SKIP** | Rule does not apply to this host |
+    | **ERROR** | Check could not complete |
+
+    The summary line shows totals:
+
+    ```
+    508 rules: 312 pass, 142 fail, 48 skip, 6 error (45.2s)
+    ```
+  </Step>
+  <Step title="Generate structured output">
+    ```bash
+    # JSON output
+    kensa check -h 192.168.1.10 -u admin --sudo -o json:results.json
+
+    # CSV for spreadsheets
+    kensa check -h 192.168.1.10 -u admin --sudo -o csv:results.csv
+
+    # Multiple formats in one run
+    kensa check -h 192.168.1.10 -u admin --sudo \
+      -o json:results.json -o csv:results.csv
+
+    # Evidence export (full command output for auditor verification)
+    kensa check -h 192.168.1.10 -u admin --sudo -o evidence:evidence.json
+    ```
+  </Step>
+</Steps>
+
+## Filtering rules
+
+You rarely need to run all 508 rules. Kensa provides several ways to focus your scan:
+
+```bash
+# By framework
+kensa check -h 192.168.1.10 -u admin --sudo -f cis-rhel9-v2.0.0
+
+# By specific control
+kensa check -h 192.168.1.10 -u admin --sudo --control cis-rhel9-v2.0.0:5.1.12
+
+# By severity
+kensa check -h 192.168.1.10 -u admin --sudo -s high -s critical
+
+# By category
+kensa check -h 192.168.1.10 -u admin --sudo -c access-control
+```
+
+## Scanning multiple hosts
+
+Use an inventory file to scan multiple hosts in parallel:
+
+```ini hosts.ini
+[webservers]
+web1.example.com
+web2.example.com
+
+[databases]
+db1.example.com ansible_user=dbadmin
+```
+
+```bash
+# Scan all hosts, 4 in parallel
+kensa check -i hosts.ini --sudo -w 4
+
+# Scan only the webservers group
+kensa check -i hosts.ini --sudo -l webservers
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Remediation" icon="wrench" href="/kensa/remediation">
+    Fix failures with automatic rollback safety.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/kensa/configuration">
+    Customize variables and per-host overrides.
+  </Card>
+  <Card title="Output formats" icon="file-export" href="/kensa/output-formats">
+    JSON, CSV, PDF, and evidence exports.
+  </Card>
+  <Card title="Auditor guide" icon="clipboard-check" href="/kensa/auditor-guide">
+    How to interpret and verify compliance evidence.
+  </Card>
+</CardGroup>

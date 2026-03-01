@@ -1,0 +1,79 @@
+---
+title: "Introduction"
+description: "Compliance as Code — Scan, Remediate, Rollback"
+---
+
+Kensa is a compliance engine that scans, remediates, and rolls back security configurations across Linux hosts over SSH. It ships with 508 rules, 23 remediation mechanisms, and 7 framework mappings — nothing is installed on target systems.
+
+## The problem with compliance automation
+
+Every major compliance automation effort follows the same pattern: pick a benchmark, pick an OS, write a full set of tasks scoped to that intersection. The result is a discrete artifact — `RHEL9-CIS`, `RHEL8-STIG` — maintained independently.
+
+For two frameworks across three RHEL versions, that is six full codebases. Each cell is an independently maintained artifact that shares 70-85% of its logic with its neighbors.
+
+The consequences are predictable:
+
+- **Drift.** A bug fixed in one artifact is rarely ported to all others. The same logical control behaves differently depending on which artifact was applied.
+- **Delayed coverage.** When a new OS ships, every artifact must be rebuilt from scratch. Coverage arrives months later, even though 90% of the controls are mechanically identical.
+- **False complexity.** Teams perceive compliance automation as inherently expensive because every new OS or framework requires a full implementation effort.
+
+## How Kensa is different
+
+Kensa is built on six principles that address this structural problem.
+
+### Separate the rule from its implementation
+
+A compliance rule is a statement of desired state: "Root login over SSH must be disabled." It is not an Ansible task, a Bash command, or a SCAP check. Those are implementations.
+
+Kensa keeps one canonical rule per security control. Implementations are attached to the rule as capability-gated variants, not as separate codebases.
+
+### Target capabilities, not version strings
+
+The question is not "is this RHEL 9?" The question is "does this system support sshd_config.d drop-in files?"
+
+Version numbers are an unreliable proxy for capabilities. Kensa detects 22 capabilities at runtime and selects the correct implementation variant for each host. A rule written today works on future OS versions without modification.
+
+### Model the delta, not the whole
+
+Between consecutive RHEL major versions, 85-90% of security-relevant configuration is identical. Kensa models the common core once and maintains thin overlays only where the mechanism genuinely differs.
+
+### Frameworks are metadata, not structure
+
+"Disable SSH root login" maps to CIS 5.1.20, STIG V-257947, NIST AC-6(2), and PCI-DSS 2.2.6. These are not four different rules — they are four labels for the same rule.
+
+Adding a new framework means adding a column of labels, not a new set of rules. Run one scan, satisfy multiple assessors from the same results.
+
+### Prefer durable, idempotent remediations
+
+Kensa uses 23 typed, declarative mechanisms instead of arbitrary scripts. Each mechanism is idempotent by design. When a more durable option exists (drop-in files, authselect features), Kensa uses it.
+
+### Forward compatibility is a design requirement
+
+Capability detection runs against the new system, produces a capability set, and existing implementation paths are selected automatically. New work is required only for genuinely new capabilities or changed behaviors.
+
+## Architecture
+
+Kensa separates compliance content into three distinct layers:
+
+**Framework Mappings** sit at the top. They are pure metadata — tables that map framework-specific identifiers to canonical rule IDs. Adding a new benchmark version means adding a new mapping file. No rules change.
+
+**Canonical Rules** form the stable core. Each rule declares a desired state, severity, category, framework references, and one or more implementations. There is exactly one rule per security control.
+
+**Platform Implementations** are the variable shell. Each implementation is gated by a detected capability, not a version string. The runtime selects the right one.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/kensa/quickstart">
+    Get from zero to your first compliance scan in 10 minutes.
+  </Card>
+  <Card title="CLI reference" icon="terminal" href="/kensa/cli-reference">
+    Complete reference for all Kensa commands.
+  </Card>
+  <Card title="Frameworks" icon="shield-check" href="/kensa/frameworks">
+    Supported compliance frameworks and coverage.
+  </Card>
+  <Card title="Auditor guide" icon="clipboard-check" href="/kensa/auditor-guide">
+    How to interpret, verify, and report on Kensa evidence.
+  </Card>
+</CardGroup>

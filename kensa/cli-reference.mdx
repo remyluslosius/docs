@@ -1,0 +1,255 @@
+---
+title: "CLI reference"
+description: "Complete reference for all Kensa commands"
+---
+
+Kensa provides nine commands. Each is described below with its full set of options.
+
+## detect
+
+Probe a target host's platform and capabilities before running checks.
+
+```bash
+kensa detect -h 192.168.1.10 -u admin --sudo
+```
+
+Output shows the OS family and version (e.g., RHEL 9.3) and the state of all 22 capability probes: authselect, crypto policies, sshd_config.d support, FIPS mode, firewalld backend, GRUB variant, and more.
+
+Use `detect` to verify connectivity and understand which implementation variants Kensa will select on a given host. Add `-v` to see probe details.
+
+## check
+
+Evaluate compliance rules against target hosts.
+
+```bash
+# Run all rules
+kensa check -h 192.168.1.10 -u admin --sudo
+
+# Filter to a framework
+kensa check -h 192.168.1.10 -u admin --sudo -f cis-rhel9-v2.0.0
+
+# Filter to a specific control
+kensa check -h 192.168.1.10 -u admin --sudo --control cis-rhel9-v2.0.0:5.1.12
+
+# Filter by severity and category
+kensa check -h 192.168.1.10 -u admin --sudo -s high -s critical -c access-control
+
+# Single rule file
+kensa check -h 192.168.1.10 -u admin --sudo --rule rules/access-control/ssh-root-login.yml
+
+# Export results in multiple formats
+kensa check -h 192.168.1.10 -u admin --sudo \
+  -o json:results.json -o csv:results.csv -o evidence:evidence.json
+
+# Store results in local database for history tracking
+kensa check -h 192.168.1.10 -u admin --sudo --store
+```
+
+### Rule filtering options
+
+| Option | Description |
+|--------|-------------|
+| `-r, --rules PATH` | Rules directory (recursive search) |
+| `--rule PATH` | Single rule file |
+| `--control ID` | Framework control (e.g., `cis-rhel9-v2.0.0:5.1.12`) |
+| `-s, --severity TEXT` | Filter by severity (repeatable: `-s high -s critical`) |
+| `-t, --tag TEXT` | Filter by tag (repeatable) |
+| `-c, --category TEXT` | Filter by category |
+| `-f, --framework TEXT` | Filter to a framework mapping |
+| `-V, --var KEY=VALUE` | Override a rule variable (repeatable) |
+
+### Output options
+
+| Option | Description |
+|--------|-------------|
+| `-o, --output FORMAT` | Output format: `json`, `csv`, `pdf`, `evidence`. Append `:path` to write to file. Repeatable. |
+| `-q, --quiet` | Suppress terminal output (useful with `-o`) |
+| `--store` | Persist results to local SQLite database |
+
+## remediate
+
+Check rules and fix failures. Remediation applies typed, idempotent mechanisms — not arbitrary scripts.
+
+```bash
+# Preview what would change (no modifications made)
+kensa remediate -h 192.168.1.10 -u admin --sudo --dry-run
+
+# Remediate with automatic rollback on failure
+kensa remediate -h 192.168.1.10 -u admin --sudo --rollback-on-failure
+
+# Remediate a single framework control
+kensa remediate -h 192.168.1.10 -u admin --sudo \
+  --control cis-rhel9-v2.0.0:5.1.20 --rollback-on-failure
+
+# Skip pre-state snapshots (faster, but rollback unavailable)
+kensa remediate -h 192.168.1.10 -u admin --sudo --no-snapshot
+```
+
+| Option | Description |
+|--------|-------------|
+| `--dry-run` | Show what would change without making modifications |
+| `--rollback-on-failure` | Automatically reverse changes if remediation or post-check fails |
+| `--allow-conflicts` | Proceed when multiple rules target the same file (last rule wins) |
+| `--no-snapshot` | Disable pre-state capture (faster, but no rollback data) |
+
+Remediation accepts all the same rule filtering and output options as `check`.
+
+<Tip>Always run `--dry-run` first. When applying changes, use `--rollback-on-failure` so the system is never left half-remediated.</Tip>
+
+## rollback
+
+Inspect past remediations and reverse changes from stored snapshots.
+
+```bash
+# List recent remediation sessions
+kensa rollback --list
+
+# Inspect a session's details
+kensa rollback --info 3
+
+# Inspect with per-step pre-state data
+kensa rollback --info 3 --detail
+
+# Preview what a rollback would do
+kensa rollback --start 3 -h 192.168.1.10 -u admin --sudo --dry-run
+
+# Execute rollback
+kensa rollback --start 3 -h 192.168.1.10 -u admin --sudo
+
+# Rollback a single rule from a session
+kensa rollback --start 3 --rule ssh-root-login -h 192.168.1.10 -u admin --sudo
+```
+
+| Option | Description |
+|--------|-------------|
+| `--list` | List recent remediation sessions |
+| `--info N` | Show details for remediation session N |
+| `--start N` | Execute rollback from session N's stored snapshots |
+| `--detail` | Include per-step pre-state data (with `--info`) |
+| `--rule TEXT` | Filter to a specific rule (with `--info` or `--start`) |
+| `-n, --max N` | Max sessions to list |
+| `--json` | Output as JSON |
+| `--dry-run` | Preview rollback without making changes |
+| `--force` | Override stale or already-rolled-back warnings |
+
+## history
+
+Query the local scan database. Requires previous scans run with `--store`.
+
+```bash
+# List recent scan sessions (default)
+kensa history
+
+# Filter sessions by host
+kensa history --host web1.example.com
+
+# Show results for a specific session
+kensa history --id 5
+
+# Per-host result history for a rule
+kensa history --host web1.example.com --rule ssh-root-login
+
+# Show database statistics
+kensa history --stats
+
+# Remove old results
+kensa history --prune 90
+```
+
+| Option | Description |
+|--------|-------------|
+| `-h, --host TEXT` | Filter by hostname |
+| `-r, --rule TEXT` | Filter by rule ID (with `--host` for result history) |
+| `-S, --id N` | Show results for a specific session |
+| `-n, --limit N` | Max entries to show |
+| `--stats` | Show database statistics |
+| `--prune DAYS` | Remove results older than N days |
+
+## diff
+
+Compare two scan sessions to find regressions and improvements.
+
+```bash
+kensa diff 3 7
+
+# Filter to a specific host
+kensa diff 3 7 --host web1.example.com
+
+# Include unchanged results
+kensa diff 3 7 --show-unchanged
+
+# Machine-readable output
+kensa diff 3 7 --json
+```
+
+Output categories: regressions (pass to fail), resolved (fail to pass), new failures, new passes.
+
+## info
+
+Look up rules by ID, framework reference, or free-text search.
+
+```bash
+# Look up by rule ID
+kensa info ssh-root-login
+
+# Look up by CIS section number
+kensa info 5.1.20
+
+# Look up by STIG vulnerability ID
+kensa info V-257947
+
+# Look up by NIST 800-53 control
+kensa info AC-6
+
+# Find rules implementing a specific control
+kensa info --control cis-rhel9-v2.0.0:5.1.20
+
+# Find which frameworks reference a rule
+kensa info --rule ssh-root-login
+
+# List all controls with rule counts
+kensa info --list-controls --framework cis-rhel9-v2.0.0
+
+# Prefix matching (5.1 matches 5.1.1, 5.1.2, etc.)
+kensa info 5.1 --prefix-match
+```
+
+## coverage
+
+Show how completely a framework mapping is implemented.
+
+```bash
+kensa coverage --framework cis-rhel9-v2.0.0
+
+# JSON output for tooling
+kensa coverage --framework stig-rhel9-v2r7 --json
+```
+
+Reports the total number of controls in the framework, how many are mapped to rules, how many are explicitly marked unimplemented (with reasons), and how many are missing.
+
+## list frameworks
+
+List all installed framework mappings.
+
+```bash
+kensa list frameworks
+```
+
+## Connection options
+
+These options are shared across `detect`, `check`, and `remediate`. The `rollback --start` mode accepts a subset.
+
+| Option | Description |
+|--------|-------------|
+| `-h, --host TEXT` | Target host(s), comma-separated |
+| `-i, --inventory TEXT` | Inventory file (INI or YAML) |
+| `-l, --limit TEXT` | Limit to a group name or hostname glob |
+| `-u, --user TEXT` | SSH username |
+| `-k, --key TEXT` | Path to SSH private key |
+| `-p, --password TEXT` | SSH password; use `-p` without a value to prompt interactively |
+| `-P, --port INTEGER` | SSH port (default: 22) |
+| `--sudo` | Run commands via sudo on the target |
+| `-w, --workers INTEGER` | Parallel SSH connections, 1-50 (default: 1) |
+| `-C, --capability KEY=VALUE` | Override a detected capability (repeatable) |
+| `-v, --verbose` | Show capability detection and implementation selection |
+| `--strict-host-keys / --no-strict-host-keys` | Verify SSH host keys (default: off) |
